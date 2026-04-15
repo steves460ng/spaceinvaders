@@ -1,0 +1,1800 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="description"
+        content="Project Retro-Invade 2026 - 아타리 감성의 스페이스 인베이더 웹 복각판. HTML5 Canvas, Web Audio API로 구현한 픽셀 퍼펙트 클래식 슈팅 게임.">
+    <title>Space Invaders</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👾</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+/* ══════════════════════════════════════════════════
+   Retro-Invade 2026 — Global Styles
+   아타리 아케이드 캐비닛 감성 CSS
+   ══════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+/* ── 리셋 & 글로벌 ─────────────────────────────── */
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0a0a0f;
+    font-family: 'Press Start 2P', 'Courier New', monospace;
+}
+
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* 깊이감 있는 배경 그라데이션 */
+    background:
+        radial-gradient(ellipse at center, #1a0030 0%, #050008 60%, #000000 100%);
+    min-height: 100vh;
+    overflow: auto;
+}
+
+/* ── 아케이드 캐비닛 외형 ──────────────────────── */
+#arcade-cabinet {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    /* 캐비닛 테두리 */
+    background: linear-gradient(180deg, #1c1c2e 0%, #12121f 60%, #0d0d1a 100%);
+    border: 2px solid #2a2a4a;
+    border-radius: 18px 18px 12px 12px;
+    padding: 0 0 12px;
+    /* 외부 글로우 */
+    box-shadow:
+        0 0 40px rgba(0, 200, 100, 0.12),
+        0 0 80px rgba(0, 80, 40, 0.08),
+        inset 0 1px 0 rgba(255,255,255,0.06);
+    position: relative;
+    /* 가로 최대폭 제한으로 캐비닛 형태 유지 */
+    max-width: 820px;
+    width: 100%;
+}
+
+/* ── 마퀴 (상단 타이틀 배너) ───────────────────── */
+#marquee {
+    width: 100%;
+    background: linear-gradient(90deg, #001800, #003300, #004d00, #003300, #001800);
+    border-radius: 16px 16px 0 0;
+    border-bottom: 2px solid #00cc44;
+    padding: 10px 0 8px;
+    text-align: center;
+    font-size: 11px;
+    color: #00ff66;
+    letter-spacing: 3px;
+    /* 마퀴 글로우 */
+    text-shadow: 0 0 10px #00ff66, 0 0 20px #00cc44;
+    box-shadow: 0 2px 20px rgba(0, 255, 100, 0.3);
+    animation: marqueeFlicker 4s infinite;
+}
+
+@keyframes marqueeFlicker {
+    0%, 95%, 100% { opacity: 1; }
+    96% { opacity: 0.85; }
+    97% { opacity: 1; }
+    98% { opacity: 0.9; }
+}
+
+/* ── 스크린 베젤 ───────────────────────────────── */
+#screen-bezel {
+    padding: 14px;
+    background:
+        linear-gradient(135deg, #1a1a2e 0%, #0f0f1a 100%);
+    border-radius: 8px;
+    margin: 10px 16px;
+    box-shadow:
+        inset 0 0 30px rgba(0,0,0,0.8),
+        inset 0 2px 4px rgba(255,255,255,0.05),
+        0 0 20px rgba(0, 120, 60, 0.2);
+    border: 1px solid #0a2a1a;
+}
+
+/* ── 게임 컨테이너 ─────────────────────────────── */
+#game-container {
+    position: relative;
+    /* 256×224 → 3배 → 768×672 */
+    width: 768px;
+    height: 672px;
+    background-color: #000000;
+    border-radius: 4px;
+    overflow: hidden;
+    /* 모니터 내부 글로우 */
+    box-shadow:
+        inset 0 0 60px rgba(0, 0, 0, 0.9),
+        inset 0 0 3px rgba(0, 255, 80, 0.1);
+}
+
+/* ── 캔버스 (픽셀 퍼펙트 업스케일) ────────────── */
+#gameCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    /* 픽셀 아트 안티앨리어싱 방지 — 모든 브라우저 커버 */
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-crisp-edges;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+/* ── CRT 오버레이 효과 ─────────────────────────── */
+.crt-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+    border-radius: 4px;
+
+    /* 스캔라인 (4px 주기) */
+    background:
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(0, 0, 0, 0.18) 2px,
+            rgba(0, 0, 0, 0.18) 4px
+        );
+
+    /* 화면 가장자리 비네트(vignette) */
+    box-shadow:
+        inset 0 0 80px rgba(0, 0, 0, 0.75),
+        inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+/* 브라운관 깜빡임 (매우 미세하게) */
+@keyframes crtFlicker {
+    0%   { opacity: 1; }
+    30%  { opacity: 0.97; }
+    60%  { opacity: 1; }
+    80%  { opacity: 0.96; }
+    85%  { opacity: 1; }
+    95%  { opacity: 0.98; }
+    100% { opacity: 1; }
+}
+
+.crt-overlay {
+    animation: crtFlicker 0.12s infinite;
+}
+
+/* ── 컨트롤 패널 (조이패드 영역) ──────────────── */
+#control-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 8px 24px 4px;
+    gap: 12px;
+}
+
+#controls-left {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+#controls-right {
+    display: flex;
+    align-items: center;
+}
+
+#controls-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+}
+
+/* ── 조이패드 버튼 공통 ────────────────────────── */
+.ctrl-btn {
+    background: linear-gradient(145deg, #1e1e3a, #12122a);
+    border: 2px solid #333366;
+    border-radius: 10px;
+    color: #aaaacc;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    cursor: pointer;
+    /* 버튼 3D 그림자 */
+    box-shadow:
+        0 4px 0 #0a0a1a,
+        0 5px 8px rgba(0,0,0,0.6),
+        inset 0 1px 0 rgba(255,255,255,0.08);
+    transition: transform 0.06s ease, box-shadow 0.06s ease, color 0.1s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+    /* 방향키: 정사각형 */
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+}
+
+.ctrl-btn:active,
+.ctrl-btn.pressed {
+    transform: translateY(3px);
+    box-shadow:
+        0 1px 0 #0a0a1a,
+        0 2px 4px rgba(0,0,0,0.6),
+        inset 0 1px 0 rgba(255,255,255,0.04);
+    color: #ffffff;
+    border-color: #5555aa;
+}
+
+/* 발사 버튼 (별도 스타일) */
+.fire-btn {
+    background: linear-gradient(145deg, #3a0010, #220008);
+    border-color: #880022;
+    color: #ff4466;
+    font-size: 8px;
+    letter-spacing: 1px;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    /* 빨간 글로우 */
+    box-shadow:
+        0 4px 0 #3a0010,
+        0 5px 12px rgba(200, 0, 50, 0.4),
+        inset 0 1px 0 rgba(255,100,100,0.15);
+    text-shadow: 0 0 8px #ff2244;
+}
+
+.fire-btn:active,
+.fire-btn.pressed {
+    border-color: #ff2244;
+    color: #ffffff;
+    text-shadow: 0 0 12px #ff2244, 0 0 20px #ff0022;
+    box-shadow:
+        0 1px 0 #220008,
+        0 2px 8px rgba(255, 0, 50, 0.6),
+        inset 0 1px 0 rgba(255,100,100,0.1);
+}
+
+/* ── 코인 슬롯 장식 ────────────────────────────── */
+#coin-slot {
+    font-size: 5px;
+    color: #444466;
+    letter-spacing: 2px;
+    text-align: center;
+    border: 1px solid #222244;
+    border-radius: 4px;
+    padding: 4px 10px;
+}
+
+/* ── 하단 푸터 ─────────────────────────────────── */
+#cabinet-footer {
+    font-size: 4px;
+    color: #333355;
+    letter-spacing: 2px;
+    margin-top: 4px;
+    padding-bottom: 4px;
+}
+
+/* ══════════════════════════════════════════════════
+   반응형 레이아웃
+   ══════════════════════════════════════════════════ */
+
+/* ── PC / 마우스 환경: 모바일 컨트롤 패널 완전 숨김 ── */
+/* hover 가능 + 정밀 포인터(마우스) = 데스크톱 환경으로 판단 */
+@media (hover: hover) and (pointer: fine) {
+    #control-panel {
+        display: none !important;
+    }
+    #cabinet-footer {
+        display: none !important;
+    }
+    /* 컨트롤 패널이 없으므로 캐비닛 하단 패딩 축소 */
+    #arcade-cabinet {
+        padding-bottom: 0;
+    }
+    /* PC에서 게임 화면이 뷰포트에 꼭 맞도록 높이 제한 */
+    #game-container {
+        /* 뷰포트 높이에서 마퀴(40px) + 베젤패딩(48px) + 캐비닛패딩(10px) 빼기 */
+        height: calc(min(672px, 100vh - 100px));
+        width: calc(min(672px, 100vh - 100px) * 256 / 224);
+        max-width: 768px;
+        max-height: 672px;
+    }
+}
+
+/* 태블릿 (최대 900px) */
+@media (max-width: 900px) {
+    #game-container {
+        /* 2배 업스케일: 512×448 */
+        width: 512px;
+        height: 448px;
+    }
+    #screen-bezel {
+        margin: 8px 10px;
+        padding: 10px;
+    }
+}
+
+/* 모바일 세로 (최대 560px) */
+@media (max-width: 560px) {
+    #game-container {
+        /* 화면 너비에 맞게 유동 크기 */
+        width: calc(100vw - 40px);
+        height: calc((100vw - 40px) * (224 / 256));
+        max-width: 400px;
+        max-height: 350px;
+    }
+
+    #screen-bezel {
+        margin: 6px 8px;
+        padding: 8px;
+    }
+
+    #arcade-cabinet {
+        border-radius: 12px 12px 8px 8px;
+        max-width: 100vw;
+    }
+
+    #marquee {
+        font-size: 7px;
+        padding: 8px 0 6px;
+        letter-spacing: 2px;
+    }
+
+    .ctrl-btn {
+        width: 52px;
+        height: 52px;
+        font-size: 16px;
+    }
+
+    .fire-btn {
+        width: 64px;
+        height: 64px;
+        font-size: 7px;
+    }
+
+    #control-panel {
+        padding: 6px 16px 2px;
+    }
+
+    #controls-center,
+    #cabinet-footer {
+        display: none;
+    }
+}
+
+/* 초소형 화면 (최대 380px) */
+@media (max-width: 380px) {
+    #game-container {
+        width: calc(100vw - 28px);
+        height: calc((100vw - 28px) * (224 / 256));
+    }
+
+    .ctrl-btn {
+        width: 46px;
+        height: 46px;
+        font-size: 14px;
+    }
+
+    .fire-btn {
+        width: 56px;
+        height: 56px;
+        font-size: 6px;
+    }
+}
+
+/* 가로 모드 모바일 (landscape) */
+@media (max-height: 500px) and (orientation: landscape) {
+    #arcade-cabinet {
+        flex-direction: row;
+        flex-wrap: wrap;
+        border-radius: 12px;
+        max-width: 100vw;
+        padding: 0;
+        gap: 0;
+    }
+
+    #marquee {
+        display: none;
+    }
+
+    #screen-bezel {
+        margin: 4px;
+        padding: 6px;
+        flex: 0 0 auto;
+    }
+
+    #game-container {
+        width: auto;
+        height: calc(100vh - 20px);
+        max-height: 400px;
+        aspect-ratio: 256 / 224;
+    }
+
+    #control-panel {
+        flex-direction: column;
+        justify-content: center;
+        height: 100%;
+        padding: 8px;
+        flex: 1;
+    }
+
+    #controls-left {
+        flex-direction: column;
+    }
+
+    #controls-center {
+        display: none;
+    }
+
+    #cabinet-footer {
+        display: none;
+    }
+}
+
+</style>
+</head>
+
+<body>
+
+    <div id="arcade-cabinet">
+
+        <!-- 상단 마퀴 -->
+        <div id="marquee">
+            <span>★ SPACE INVADER ★</span>
+        </div>
+
+        <!-- 게임 화면 영역 -->
+        <div id="screen-bezel">
+            <div id="game-container">
+                <!-- CRT 스캔라인 + 비네트 오버레이 -->
+                <div class="crt-overlay"></div>
+                <!-- 메인 게임 캔버스 (원작 해상도 256x224) -->
+                <canvas id="gameCanvas" width="256" height="224"></canvas>
+            </div>
+        </div>
+
+        <!-- 모바일 가상 조이패드 -->
+        <div id="control-panel">
+            <div id="controls-left">
+                <button id="btn-left" class="ctrl-btn" aria-label="왼쪽 이동">◀</button>
+                <button id="btn-right" class="ctrl-btn" aria-label="오른쪽 이동">▶</button>
+            </div>
+            <div id="controls-center">
+                <div id="coin-slot">INSERT COIN</div>
+            </div>
+            <div id="controls-right">
+                <button id="btn-fire" class="ctrl-btn fire-btn" aria-label="발사">FIRE</button>
+            </div>
+        </div>
+
+        <!-- 하단 장식 -->
+        <div id="cabinet-footer">
+            <span>© 1978 TAITO | WEB EDITION 2026</span>
+        </div>
+
+    </div>
+
+    <script>
+(() => {
+
+/* --- config.js --- */
+// config.js - 프로젝트의 모든 난이도 및 렌더링 관련 상수 모음집
+
+const GAME_STATES = {
+    BOOT: 'BOOT',
+    TITLE: 'TITLE',
+    READY: 'READY',
+    PLAY: 'PLAY',
+    PAUSE: 'PAUSE',
+    WAVE_CLEAR: 'WAVE_CLEAR',
+    PLAYER_DEATH: 'PLAYER_DEATH',
+    GAME_OVER: 'GAME_OVER'
+};
+
+const CONFIG = {
+    // 코어 환경 파라미터
+    GAME_WIDTH: 256,
+    GAME_HEIGHT: 224,
+    FPS: 60,
+
+    // 4.1 물리 파라미터 (Physics) - 오리지널 Space Invaders 기준 조정
+    PHYSICS: {
+        PLAYER_SPEED: 1.0,              // 플레이어 좌우 이동 속도 (px/frame)
+        BULLET_SPEED: 1.5,              // 플레이어 탄환 상승 속도 (px/frame)
+        ALIEN_BULLET_SPEED: 0.5,        // 외계인 탄환 하강 속도 (px/frame)
+        ALIEN_INITIAL_SPEED: 2.5,         // 외계인 1회 이동 거리 (px, 전체 생존 시 기준) ★ 핵심 속도
+        ALIEN_ACCELERATION_RATIO: 0.02, // 외계인 사망마다 증가하는 속도 계수
+        ALIEN_DROP_DISTANCE: 4,         // 벽 충돌 시 하강 거리 (px)
+        UFO_SPEED: 0.2,                 // UFO 가로 이동 속도 (px/frame)
+    },
+
+    // 4.2 밸런스 파라미터 (Balance)
+    BALANCE: {
+        MAX_PLAYER_BULLETS: 1,      // 동시 발사 탄환 수 (오리지널 = 1발)
+        ALIEN_FIRE_RATE: 0.006,     // 외계인 발사 빈도 기본 계수
+        UFO_APPEARANCE_CHANCE: 0.002, // UFO 기본 등장 확률
+        INITIAL_LIVES: 3,
+        READY_DELAY_MS: 2500,
+
+        // 웨이브별 난이도 상승 계수 (Progressive Difficulty)
+        WAVE_SCALING: {
+            ALIEN_SPEED_MULTIPLIER: 1.15,       // 웨이브당 외계인 이동 간격 가속 배율 (기본 초기속도 감소 배율)
+            ALIEN_FIRE_RATE_MULTIPLIER: 1.15,   // 웨이브당 외계인 사격 빈도 증가 배율
+            ALIEN_FIRE_RATE_MAX: 0.05,          // 외계인 사격 빈도 증가 상한선
+            UFO_CHANCE_MULTIPLIER: 1.05,        // 웨이브당 UFO 등장 확률 증가 배율
+            UFO_CHANCE_MAX: 0.01                // UFO 등장 확률 상한선
+        }
+    }
+};
+
+// 색상 팔레트
+const COLORS = {
+    BACKGROUND: '#000000',
+    PLAYER: '#00FF00',
+    ALIEN: '#FFFFFF',
+    ALIEN_B: '#00FFFF',
+    ALIEN_C: '#AAFFAA',
+    BUNKER: '#00FF00',
+    UFO: '#FF3333',
+    ALIEN_BULLET: '#FF8800',
+    EXPLOSION: '#FFFF44',
+    TEXT: '#FFFFFF',
+};
+
+/* --- sprites.js --- */
+// sprites.js - 모든 게임 오브젝트의 픽셀 아트 데이터 (바이너리 배열)
+// 각 배열은 [열, 행] 크기의 픽셀 맵. 1 = 픽셀 on, 0 = 투명
+
+// 외계인 타입 A (Squid) - 8x8, 2프레임 애니메이션
+const ALIEN_A = [
+    [
+        [0,0,0,1,1,0,0,0],
+        [0,0,1,1,1,1,0,0],
+        [0,1,1,1,1,1,1,0],
+        [1,1,0,1,1,0,1,1],
+        [1,1,1,1,1,1,1,1],
+        [0,1,0,1,1,0,1,0],
+        [1,0,0,0,0,0,0,1],
+        [0,1,0,0,0,0,1,0],
+    ],
+    [
+        [0,0,0,1,1,0,0,0],
+        [0,0,1,1,1,1,0,0],
+        [0,1,1,1,1,1,1,0],
+        [1,1,0,1,1,0,1,1],
+        [1,1,1,1,1,1,1,1],
+        [0,0,1,0,0,1,0,0],
+        [0,1,0,1,1,0,1,0],
+        [1,0,1,0,0,1,0,1],
+    ]
+];
+
+// 외계인 타입 B (Crab) - 11x8, 2프레임 애니메이션
+const ALIEN_B = [
+    [
+        [0,0,1,0,0,0,0,0,1,0,0],
+        [0,0,0,1,0,0,0,1,0,0,0],
+        [0,0,1,1,1,1,1,1,1,0,0],
+        [0,1,1,0,1,1,1,0,1,1,0],
+        [1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,1,1,1,1,1,1,1,0,1],
+        [1,0,1,0,0,0,0,0,1,0,1],
+        [0,0,0,1,1,0,1,1,0,0,0],
+    ],
+    [
+        [0,0,1,0,0,0,0,0,1,0,0],
+        [1,0,0,1,0,0,0,1,0,0,1],
+        [1,0,1,1,1,1,1,1,1,0,1],
+        [1,1,1,0,1,1,1,0,1,1,1],
+        [1,1,1,1,1,1,1,1,1,1,1],
+        [0,1,1,1,1,1,1,1,1,1,0],
+        [0,0,1,0,0,0,0,0,1,0,0],
+        [0,1,0,0,0,0,0,0,0,1,0],
+    ]
+];
+
+// 외계인 타입 C (Octopus) - 12x8, 2프레임 애니메이션
+const ALIEN_C = [
+    [
+        [0,0,0,0,1,1,1,1,0,0,0,0],
+        [0,1,1,1,1,1,1,1,1,1,1,0],
+        [1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,1,1,0,0,1,1,0,0,1,1,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1],
+        [0,0,1,1,1,0,0,1,1,1,0,0],
+        [0,1,1,0,0,1,1,0,0,1,1,0],
+        [1,1,0,0,0,0,0,0,0,0,1,1],
+    ],
+    [
+        [0,0,0,0,1,1,1,1,0,0,0,0],
+        [0,1,1,1,1,1,1,1,1,1,1,0],
+        [1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,1,1,0,0,1,1,0,0,1,1,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1],
+        [0,0,0,1,1,0,0,1,1,0,0,0],
+        [0,0,1,1,0,0,0,0,1,1,0,0],
+        [0,1,1,0,0,0,0,0,0,1,1,0],
+    ]
+];
+
+// 플레이어 기체 (CANNON) - 13x8
+const PLAYER_SPRITE = [
+    [0,0,0,0,0,0,1,0,0,0,0,0,0],
+    [0,0,0,0,0,1,1,1,0,0,0,0,0],
+    [0,0,0,0,0,1,1,1,0,0,0,0,0],
+    [0,1,1,1,1,1,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+
+// 플레이어 폭발 애니메이션 - 2프레임
+const PLAYER_EXPLOSION = [
+    [
+        [0,1,0,0,1,0,1,0,0,1,0,0,0],
+        [0,0,1,0,0,0,0,0,1,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,1,0,0],
+        [1,0,0,1,0,0,0,1,0,0,0,1,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,1,0,0,0,1,0,0,0,1,0],
+        [0,0,0,0,0,0,0,0,0,0,1,0,0],
+        [0,0,1,0,0,0,0,0,1,0,0,0,0],
+    ],
+    [
+        [0,0,0,1,0,0,0,0,1,0,0,0,0],
+        [1,0,0,0,0,0,0,0,0,0,0,0,1],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,1,0,0,0,0,0,0,1,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [1,0,0,0,0,0,0,0,0,0,0,0,1],
+        [0,0,0,1,0,0,0,0,1,0,0,0,0],
+    ]
+];
+
+// 미스테리 UFO - 16x7
+const UFO_SPRITE = [
+    [0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0],
+    [0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0],
+    [0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0],
+    [0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [0,0,1,1,0,0,1,1,1,1,0,0,1,1,0,0],
+    [0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0],
+];
+
+// 방어벽(Bunker) - 22x16 원시 픽셀 데이터
+const BUNKER_SPRITE = [
+    [0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0],
+    [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1],
+    [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+];
+
+// 외계인 탄환 스프라이트 - 3x7
+const ALIEN_BULLET_SPRITE = [
+    [0,1,0],
+    [1,0,1],
+    [0,1,0],
+    [1,0,1],
+    [0,1,0],
+    [1,0,1],
+    [0,1,0],
+];
+
+/**
+ * 스프라이트 데이터를 오프스크린 캔버스에 미리 렌더링하여 캐싱
+ * @param {number[][]} pixels - 2D 바이너리 픽셀 배열
+ * @param {string} color - 픽셀 색상 (CSS 컬러 문자열)
+ * @param {number} scale - 픽셀당 크기 (1 = 원본 크기)
+ * @returns {HTMLCanvasElement} - 캐시된 오프스크린 캔버스
+ */
+function createSpriteCanvas(pixels, color, scale = 1) {
+    const h = pixels.length;
+    const w = pixels[0].length;
+    const oc = document.createElement('canvas');
+    oc.width = w * scale;
+    oc.height = h * scale;
+    const octx = oc.getContext('2d');
+    octx.fillStyle = color;
+    for (let row = 0; row < h; row++) {
+        for (let col = 0; col < w; col++) {
+            if (pixels[row][col] === 1) {
+                octx.fillRect(col * scale, row * scale, scale, scale);
+            }
+        }
+    }
+    return oc;
+}
+
+/* --- audio.js --- */
+// audio.js - Web Audio API 기반 아케이드 사운드 합성 엔진
+
+let audioCtx = null;
+
+function getCtx() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioCtx;
+}
+
+/**
+ * 기본 오실레이터 사운드 재생
+ * @param {number} freq - 주파수 (Hz)
+ * @param {string} type - 파형 타입 ('square'|'sawtooth'|'sine'|'triangle')
+ * @param {number} duration - 재생 시간 (초)
+ * @param {number} gainVal - 볼륨 (0~1)
+ * @param {number} freqEnd - 피치 슬라이드 종료 주파수 (선택)
+ */
+function playTone(freq, type = 'square', duration = 0.1, gainVal = 0.3, freqEnd = null) {
+    const ctx = getCtx();
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    if (freqEnd !== null) {
+        osc.frequency.linearRampToValueAtTime(freqEnd, ctx.currentTime + duration);
+    }
+
+    gainNode.gain.setValueAtTime(gainVal, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+}
+
+// ── 각종 효과음 ──────────────────────────────────────────────
+
+/** 플레이어 발사 사운드 */
+function sfxPlayerShoot() {
+    playTone(880, 'square', 0.08, 0.25, 440);
+}
+
+/** 외계인 격추 폭발음 */
+function sfxAlienExplode() {
+    playTone(200, 'sawtooth', 0.15, 0.35, 50);
+}
+
+/** UFO 격추 또는 고득점 사운드 */
+function sfxUfoExplode() {
+    const ctx = getCtx();
+    // 2단 폭발
+    playTone(500, 'square', 0.1, 0.4, 200);
+    setTimeout(() => playTone(150, 'sawtooth', 0.2, 0.3, 50), 100);
+}
+
+/** 플레이어 사망 사운드 (긴 하강 멜로디) */
+function sfxPlayerDeath() {
+    const notes = [
+        { freq: 640, delay: 0 },
+        { freq: 530, delay: 150 },
+        { freq: 400, delay: 300 },
+        { freq: 280, delay: 450 },
+        { freq: 160, delay: 600 },
+    ];
+    notes.forEach(n => setTimeout(() => playTone(n.freq, 'square', 0.12, 0.3), n.delay));
+}
+
+/** UFO 비행 중 반복 사운드 */
+function sfxUfoFly() {
+    playTone(220, 'sawtooth', 0.08, 0.15, 330);
+}
+
+// ── 외계인 행진 사운드 (4단 베이스 루프) ─────────────────────
+
+// 4단 노트 주파수
+const MARCH_NOTES = [160, 130, 100, 80];
+let marchStep = 0;
+
+/**
+ * 외계인 이동 1틱마다 호출. 4단 베이스 루프를 순환 재생.
+ * @param {number} speed - 현재 속도 비율 (빠를수록 duration 짧게)
+ */
+function sfxAlienMarch(speed = 1) {
+    const duration = Math.max(0.03, 0.1 / speed);
+    playTone(MARCH_NOTES[marchStep % 4], 'square', duration, 0.28);
+    marchStep = (marchStep + 1) % 4;
+}
+
+/** AudioContext 사용자 인터랙션 잠금 해제 (브라우저 정책) */
+function unlockAudioContext() {
+    if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}
+
+/* --- main.js --- */
+// main.js - Retro-Invade 2026 메인 게임 루프 및 모든 게임 로직
+
+
+
+
+
+// ── 캔버스 초기화 ─────────────────────────────────────────────
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+// ── 게임 상태 전역 변수 ───────────────────────────────────────
+let currentState = GAME_STATES.BOOT;
+let score = 0;
+let highScore = parseInt(localStorage.getItem('retro_highscore') || '0', 10);
+let lives = CONFIG.BALANCE.INITIAL_LIVES;
+let wave = 1;
+let lastTime = 0;
+
+// ── 입력 상태 ─────────────────────────────────────────────────
+const keys = {};
+const touchState = { left: false, right: false, fire: false, _firePrev: false };
+
+// ── 스프라이트 캐시 ───────────────────────────────────────────
+let spriteCache = {};
+
+function buildSpriteCache() {
+    spriteCache.alienA = [
+        createSpriteCanvas(ALIEN_A[0], COLORS.ALIEN),
+        createSpriteCanvas(ALIEN_A[1], COLORS.ALIEN),
+    ];
+    spriteCache.alienB = [
+        createSpriteCanvas(ALIEN_B[0], COLORS.ALIEN_B),
+        createSpriteCanvas(ALIEN_B[1], COLORS.ALIEN_B),
+    ];
+    spriteCache.alienC = [
+        createSpriteCanvas(ALIEN_C[0], COLORS.ALIEN_C),
+        createSpriteCanvas(ALIEN_C[1], COLORS.ALIEN_C),
+    ];
+    spriteCache.player = createSpriteCanvas(PLAYER_SPRITE, COLORS.PLAYER);
+    spriteCache.playerExp = [
+        createSpriteCanvas(PLAYER_EXPLOSION[0], COLORS.EXPLOSION),
+        createSpriteCanvas(PLAYER_EXPLOSION[1], COLORS.EXPLOSION),
+    ];
+    spriteCache.ufo = createSpriteCanvas(UFO_SPRITE, COLORS.UFO);
+    spriteCache.bunker = createSpriteCanvas(BUNKER_SPRITE, COLORS.BUNKER);
+    spriteCache.alienBullet = createSpriteCanvas(ALIEN_BULLET_SPRITE, COLORS.ALIEN_BULLET);
+}
+
+// ── 레이아웃 상수 ─────────────────────────────────────────────
+// HUD: y=2 (height ~10px)
+// UFO lane: y=16 (height 7px → ends at y=23)
+// Alien grid: ALIEN_ORIGIN_Y=36 이상
+const UFO_FLIGHT_Y = 19;   // UFO 비행 Y 좌표 (HUD 아래 전용 레인)
+const ALIEN_ORIGIN_X = 42;
+const ALIEN_ORIGIN_Y = 38;   // 외계인 그리드 시작 Y (UFO 레인 아래)
+
+// ── 엔티티 데이터 ─────────────────────────────────────────────
+
+/** 플레이어 */
+const player = {
+    x: CONFIG.GAME_WIDTH / 2 - 6,
+    y: CONFIG.GAME_HEIGHT - 20,
+    w: 13, h: 8,
+};
+
+let playerBullets = [];
+
+/** 외계인 군단 */
+let aliens = [];
+const ALIEN_COLS = 11;
+const ALIEN_ROWS = 5;
+const ALIEN_GAP_X = 4;
+const ALIEN_GAP_Y = 6;
+const ALIEN_W = 12;
+const ALIEN_H = 8;
+
+let alienDir = 1;
+let alienMoveTimer = 0;
+let alienMoveInterval = 1000; // 오리지널에 맞게 1000ms (=1초)로 시작
+let alienFrame = 0;
+let alienDropQueued = false;
+
+/** 외계인 탄환 */
+let alienBullets = [];
+
+/** UFO */
+let ufo = null;
+let ufoTimer = 0;
+let ufoSfxTimer = 0;
+const UFO_MIN_INTERVAL = 18000; // 18초 이후 등장 가능
+
+/** 방어벽 */
+let bunkers = [];
+
+/** 파티클 이펙트 */
+let particles = [];
+
+/** 부유 점수 팝업 텍스트 */
+let textPopups = [];
+
+/** FSM 보조 변수 */
+let readyTimer = 0;
+let waveClearTimer = 0;
+let isWaveClear = false;  // 웨이브 클리어 후 READY 전환 여부
+let statsAlienKill = 0;
+let deathAnimFrame = 0;
+let deathAnimTimer = 0;
+
+/** 치트/디버그 전용 변수 */
+let cheatBuffer = "";
+let cheatKillActive = false;
+let cheatKillTimer = 0;
+let blink = true;
+let blinkTimer = 0;
+
+// ── 초기화 ────────────────────────────────────────────────────
+
+function initGame() {
+    score = 0;
+    lives = CONFIG.BALANCE.INITIAL_LIVES;
+    wave = 1;
+    statsAlienKill = 0;
+    isWaveClear = false;
+    playerBullets = [];
+    alienBullets = [];
+    textPopups = [];
+    particles = [];
+    ufo = null;
+    ufoTimer = 0;
+    ufoSfxTimer = 0;
+    
+    // 치트 상태 초기화
+    cheatBuffer = "";
+    cheatKillActive = false;
+    cheatKillTimer = 0;
+
+    player.x = CONFIG.GAME_WIDTH / 2 - 6;
+    alienDir = 1;
+    alienDropQueued = false;
+    alienMoveTimer = 0;
+    spawnAliens();
+    spawnBunkers();
+    updateAlienSpeed();
+    
+    printWaveDebugInfo(); // 최초 게임 시작 시 디버그 정보 출력
+}
+
+function spawnAliens() {
+    aliens = [];
+    for (let row = 0; row < ALIEN_ROWS; row++) {
+        for (let col = 0; col < ALIEN_COLS; col++) {
+            let type;
+            if (row === 0) type = 'A';
+            else if (row <= 2) type = 'B';
+            else type = 'C';
+
+            // 모든 외계인의 논리적 히트박스를 ALIEN_W(12)로 통일하여 군단 전체의 X 반경 일치시킴
+            aliens.push({
+                type, col, row,
+                x: ALIEN_ORIGIN_X + col * (ALIEN_W + ALIEN_GAP_X),
+                y: ALIEN_ORIGIN_Y + row * (ALIEN_H + ALIEN_GAP_Y),
+                w: ALIEN_W, h: ALIEN_H,
+                alive: true,
+                frame: 0,
+            });
+        }
+    }
+}
+
+function spawnBunkers() {
+    bunkers = [];
+    const count = 4;
+    const spacing = Math.floor(CONFIG.GAME_WIDTH / (count + 1));
+    for (let i = 0; i < count; i++) {
+        const bx = spacing * (i + 1) - 11;
+        const by = CONFIG.GAME_HEIGHT - 50;
+        const pixels = BUNKER_SPRITE.map(row => [...row]);
+        bunkers.push({ x: bx, y: by, w: 22, h: 16, pixels });
+    }
+}
+
+function updateAlienSpeed() {
+    const aliveCount = aliens.filter(a => a.alive).length;
+    const total = ALIEN_COLS * ALIEN_ROWS;
+    
+    // 웨이브 스케일링 배율 (웨이브가 높아질수록 이동 간격이 짧아져 빨라짐)
+    const speedMultiplier = Math.pow(CONFIG.BALANCE.WAVE_SCALING.ALIEN_SPEED_MULTIPLIER, wave - 1);
+    
+    // 55마리(100%) → 700ms, 1마리 → 55ms (오리지널 속도감 재현)
+    let interval = Math.max(55, 700 * (aliveCount / total));
+    interval = interval / speedMultiplier;
+    
+    alienMoveInterval = Math.max(20, interval); // 최소 20ms 방어선
+}
+
+// ── 파티클 헬퍼 ───────────────────────────────────────────────
+
+/**
+ * 폭발 파티클 생성
+ * @param {number} cx - 중심 X
+ * @param {number} cy - 중심 Y
+ * @param {string} color
+ * @param {number} count
+ * @param {number} speed - 최대 속도 (px/ms)
+ * @param {number} life - 수명 (ms)
+ */
+function spawnParticles(cx, cy, color, count = 10, speed = 0.06, life = 600) {
+    for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.6;
+        const v = speed * (0.5 + Math.random() * 0.8);
+        particles.push({
+            x: cx, y: cy,
+            vx: Math.cos(angle) * v,
+            vy: Math.sin(angle) * v,
+            life,
+            maxLife: life,
+            color,
+            size: 1 + Math.random() * 0.8,
+        });
+    }
+}
+
+// ── 상태 전이 및 유틸 ────────────────────────────────────────
+
+function addScore(points) {
+    score += points;
+    if (score > highScore) {
+        highScore = score;
+        // 하이스코어 갱신 즉시 로컬 스토리지 한 번 더 반영
+        localStorage.setItem('retro_highscore', String(highScore));
+    }
+}
+
+function changeState(newState) { currentState = newState; }
+
+function startReady() {
+    readyTimer = CONFIG.BALANCE.READY_DELAY_MS;
+    changeState(GAME_STATES.READY);
+}
+
+function doPlayerDeath() {
+    sfxPlayerDeath();
+    // 플레이어 파괴 파티클
+    spawnParticles(player.x + player.w / 2, player.y + player.h / 2,
+        COLORS.PLAYER, 14, 0.08, 800);
+    lives--;
+    deathAnimFrame = 0;
+    deathAnimTimer = 0;
+    changeState(GAME_STATES.PLAYER_DEATH);
+}
+
+// ── 입력 설정 ─────────────────────────────────────────────────
+
+function setupInput() {
+    window.addEventListener('keydown', e => {
+        e.preventDefault();
+        keys[e.code] = true;
+        
+        // 치트 버퍼 로직
+        if (e.key.length === 1 || e.key === ' ') {
+            cheatBuffer += e.key.toLowerCase();
+            if (cheatBuffer.length > 20) cheatBuffer = cheatBuffer.slice(-20);
+        }
+        if (e.code === 'Escape') cheatBuffer = "";
+
+        if (cheatBuffer.endsWith('all kill') || cheatBuffer.endsWith('allkill')) {
+            cheatBuffer = ""; // 발동 후 버퍼 비우기
+            cheatKillActive = true;
+            if (currentState === GAME_STATES.PAUSE) changeState(GAME_STATES.PLAY);
+        }
+
+        unlockAudioContext();
+        handleKeyAction(e.code);
+    });
+    window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+    const bindTouch = (id, prop) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const on = () => { touchState[prop] = true; unlockAudioContext(); };
+        const off = () => { touchState[prop] = false; };
+        el.addEventListener('touchstart', e => { if (e.cancelable) e.preventDefault(); on(); }, { passive: false });
+        el.addEventListener('touchend', e => { if (e.cancelable) e.preventDefault(); off(); }, { passive: false });
+        el.addEventListener('touchcancel', e => { if (e.cancelable) e.preventDefault(); off(); }, { passive: false });
+        el.addEventListener('mousedown', on);
+        el.addEventListener('mouseup', off);
+        el.addEventListener('mouseleave', off);
+    };
+    bindTouch('btn-left', 'left');
+    bindTouch('btn-right', 'right');
+    bindTouch('btn-fire', 'fire');
+}
+
+function handleKeyAction(code) {
+    if (currentState === GAME_STATES.TITLE && (code === 'Enter' || code === 'Space')) {
+        initGame(); startReady();
+    } else if (currentState === GAME_STATES.GAME_OVER && (code === 'Enter' || code === 'Space')) {
+        initGame(); startReady();
+    } else if (currentState === GAME_STATES.PLAY) {
+        if (code === 'Space' || code === 'ArrowUp') tryPlayerShoot();
+        if (code === 'KeyP' || code === 'Escape') {
+            cheatBuffer = ""; // ESC 입력 시 치트 버퍼 강제 초기화
+            changeState(GAME_STATES.PAUSE);
+        }
+    } else if (currentState === GAME_STATES.PAUSE) {
+        if (code === 'KeyP' || code === 'Escape') {
+            cheatBuffer = "";
+            changeState(GAME_STATES.PLAY);
+        }
+    }
+}
+
+// 개발자용 난이도 정보 콘솔 출력 함수
+function printWaveDebugInfo() {
+    const speedMultiplier = Math.pow(CONFIG.BALANCE.WAVE_SCALING.ALIEN_SPEED_MULTIPLIER, wave - 1);
+    const scaledFireRate = Math.min(
+        CONFIG.BALANCE.ALIEN_FIRE_RATE * Math.pow(CONFIG.BALANCE.WAVE_SCALING.ALIEN_FIRE_RATE_MULTIPLIER, wave - 1),
+        CONFIG.BALANCE.WAVE_SCALING.ALIEN_FIRE_RATE_MAX
+    );
+    const scaledUfoChance = Math.min(
+        CONFIG.BALANCE.UFO_APPEARANCE_CHANCE * Math.pow(CONFIG.BALANCE.WAVE_SCALING.UFO_CHANCE_MULTIPLIER, wave - 1),
+        CONFIG.BALANCE.WAVE_SCALING.UFO_CHANCE_MAX
+    );
+    
+    console.log(`%c[WAVE ${wave} START] 밸런스 정보`, 'color: #00FF00; font-weight: bold; background: #222; padding: 2px 4px;');
+    console.log(`- 적 이동 가속 배율: ${speedMultiplier.toFixed(2)}x`);
+    console.log(`- 적 발사 빈도: ${(scaledFireRate * 100).toFixed(2)}% / tick`);
+    console.log(`- UFO 등장 확률: ${(scaledUfoChance * 100).toFixed(2)}% / tick`);
+}
+
+function tryPlayerShoot() {
+    if (playerBullets.length < CONFIG.BALANCE.MAX_PLAYER_BULLETS) {
+        playerBullets.push({
+            x: player.x + player.w / 2 - 0.5,
+            y: player.y - 1,
+            w: 1, h: 4,
+        });
+        sfxPlayerShoot();
+    }
+}
+
+// ── 업데이트 ──────────────────────────────────────────────────
+
+function update(dt) {
+    blinkTimer += dt;
+    if (blinkTimer > 500) { blink = !blink; blinkTimer = 0; }
+
+    // 터치 FIRE로 타이틀/게임오버 → 게임 시작
+    const fireTouched = touchState.fire && !touchState._firePrev;
+    if (fireTouched) {
+        if (currentState === GAME_STATES.TITLE || currentState === GAME_STATES.GAME_OVER) {
+            unlockAudioContext();
+            initGame();
+            startReady();
+        }
+    }
+
+    switch (currentState) {
+        case GAME_STATES.READY: updateReady(dt); break;
+        case GAME_STATES.PLAY: updatePlay(dt); break;
+        case GAME_STATES.PLAYER_DEATH: updateDeath(dt); break;
+        case GAME_STATES.WAVE_CLEAR: updateWaveClear(dt); break;
+    }
+
+    touchState._firePrev = touchState.fire;  // 매 프레임 最대 한 번만 가장 마지막에 갱신
+}
+
+function updateReady(dt) {
+    readyTimer -= dt;
+    if (readyTimer <= 0) changeState(GAME_STATES.PLAY);
+}
+
+function updateDeath(dt) {
+    deathAnimTimer += dt;
+    if (deathAnimTimer > 180) { deathAnimFrame++; deathAnimTimer = 0; }
+    // 파티클 계속 업데이트
+    updateParticles(dt);
+    if (deathAnimFrame >= 6) {
+        if (lives <= 0) {
+            changeState(GAME_STATES.GAME_OVER);
+        } else {
+            player.x = CONFIG.GAME_WIDTH / 2 - 6;
+            playerBullets = [];
+            alienBullets = [];
+            particles = [];
+            isWaveClear = false;  // 사망 후 부활은 웨이브 클리어 아님
+            startReady();
+        }
+    }
+}
+
+function updatePlay(dt) {
+    // 플레이어 이동
+    const isLeft = keys['ArrowLeft'] || keys['KeyA'] || touchState.left;
+    const isRight = keys['ArrowRight'] || keys['KeyD'] || touchState.right;
+    const isFire = touchState.fire;
+
+    if (isLeft && player.x > 0) player.x -= CONFIG.PHYSICS.PLAYER_SPEED * (dt / 16.67);
+    if (isRight && player.x + player.w < CONFIG.GAME_WIDTH - 2) player.x += CONFIG.PHYSICS.PLAYER_SPEED * (dt / 16.67);
+
+    // 치트 연쇄 폭발 로직
+    if (cheatKillActive) {
+        cheatKillTimer += dt;
+        if (cheatKillTimer > 50) { // 50ms 마다 1마리씩 파괴
+            cheatKillTimer = 0;
+            const liveAliens = aliens.filter(a => a.alive);
+            if (liveAliens.length > 0) {
+                const target = liveAliens[0];
+                target.alive = false;
+                sfxAlienExplode();
+                const pts = target.type === 'A' ? 30 : target.type === 'B' ? 20 : 10;
+                addScore(pts);
+                statsAlienKill++;
+                const cx = target.x + target.w / 2;
+                const cy = target.y + target.h / 2;
+                spawnParticles(cx, cy, COLORS.EXPLOSION, 10, 0.05, 400);
+                textPopups.push({ x: cx, y: cy, text: pts.toString(), life: 500 });
+                updateAlienSpeed(); // 남은 수 감소에 따른 속도 가속 체감
+            } else {
+                cheatKillActive = false;
+            }
+        }
+    }
+
+    // 터치 발사 (엣지 감지: _firePrev는 update() 상단에서 이미 갱신됨)
+    if (isFire && !touchState._firePrev) tryPlayerShoot();
+
+    // 플레이어 탄환 이동
+    playerBullets = playerBullets.filter(b => {
+        b.y -= CONFIG.PHYSICS.BULLET_SPEED;
+        return b.y + b.h > 0;
+    });
+
+    // 외계인 이동
+    alienMoveTimer += dt;
+    if (alienMoveTimer >= alienMoveInterval) {
+        alienMoveTimer = 0;
+        moveAliens();
+        sfxAlienMarch(1000 / alienMoveInterval);
+    }
+
+    // 외계인 발사
+    const scaledFireRate = Math.min(
+        CONFIG.BALANCE.ALIEN_FIRE_RATE * Math.pow(CONFIG.BALANCE.WAVE_SCALING.ALIEN_FIRE_RATE_MULTIPLIER, wave - 1),
+        CONFIG.BALANCE.WAVE_SCALING.ALIEN_FIRE_RATE_MAX
+    );
+    const fireChance = scaledFireRate * (dt / 16.67);
+    if (Math.random() < fireChance) fireAlienBullet();
+
+    // 외계인 탄환 이동
+    alienBullets = alienBullets.filter(b => {
+        b.y += CONFIG.PHYSICS.ALIEN_BULLET_SPEED;
+        return b.y < CONFIG.GAME_HEIGHT;
+    });
+
+    // UFO
+    updateUFO(dt);
+
+    // 충돌
+    checkCollisions();
+
+    // 파티클 & 팝업 텍스트 업데이트
+    updateParticles(dt);
+    textPopups = textPopups.filter(t => {
+        t.y -= 0.025 * dt;  // 위로 떠오르기
+        t.life -= dt;
+        return t.life > 0;
+    });
+
+    // 웨이브 클리어
+    if (aliens.every(a => !a.alive)) {
+        waveClearTimer = 1000;
+        changeState(GAME_STATES.WAVE_CLEAR);
+    }
+
+    // 외계인 최하단 도달 체크
+    const lowestY = aliens
+        .filter(a => a.alive)
+        .reduce((m, a) => Math.max(m, a.y + a.h), 0);
+    if (lowestY >= player.y) doPlayerDeath();
+}
+
+function updateWaveClear(dt) {
+    waveClearTimer -= dt;
+    updateParticles(dt);
+    textPopups = textPopups.filter(t => {
+        t.y -= 0.025 * dt;  // 위로 떠오르기
+        t.life -= dt;
+        return t.life > 0;
+    });
+
+    if (waveClearTimer <= 0) {
+        wave++;
+        isWaveClear = true;
+        playerBullets = [];
+        alienBullets = [];
+        textPopups = [];
+        particles = [];
+        alienDir = 1;
+        alienDropQueued = false;
+        alienMoveTimer = 0;
+        ufo = null;
+        ufoTimer = 0;
+        ufoSfxTimer = 0;
+        cheatKillActive = false;
+        spawnAliens();
+        spawnBunkers();
+        updateAlienSpeed();
+        
+        printWaveDebugInfo(); // 다음 웨이브 시작 시 디버그 정보 출력
+        
+        startReady();
+    }
+}
+
+function updateParticles(dt) {
+    particles = particles.filter(p => {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 0.00005 * dt; // 미세 중력
+        p.life -= dt;
+        return p.life > 0;
+    });
+}
+
+// ── 외계인 이동 로직 ──────────────────────────────────────────
+
+function moveAliens() {
+    const alive = aliens.filter(a => a.alive);
+    if (!alive.length) return;
+
+    alienFrame = 1 - alienFrame;
+    alive.forEach(a => a.frame = alienFrame);
+
+    if (alienDropQueued) {
+        alive.forEach(a => a.y += CONFIG.PHYSICS.ALIEN_DROP_DISTANCE);
+        alienDir = -alienDir;
+        alienDropQueued = false;
+        updateAlienSpeed();
+        return;
+    }
+
+    // 살아있는 외계인 수에 따른 가속 (오리지널 방식)
+    const aliveCount = alive.length;
+    const total = ALIEN_COLS * ALIEN_ROWS;
+    const step = CONFIG.PHYSICS.ALIEN_INITIAL_SPEED
+        + (total - aliveCount) * CONFIG.PHYSICS.ALIEN_ACCELERATION_RATIO;
+
+    alive.forEach(a => a.x += step * alienDir);
+
+    const rightEdge = Math.max(...alive.map(a => a.x + a.w));
+    const leftEdge = Math.min(...alive.map(a => a.x));
+    if (rightEdge >= CONFIG.GAME_WIDTH - 2 || leftEdge <= 2) {
+        alienDropQueued = true;
+    }
+}
+
+function fireAlienBullet() {
+    const alive = aliens.filter(a => a.alive);
+    if (!alive.length || alienBullets.length >= 3) return;
+
+    // 각 열에서 최하단 외계인만 발사 가능
+    const shooters = alive.filter(a =>
+        !alive.some(b => b.col === a.col && b.row > a.row)
+    );
+    if (!shooters.length) return;
+    const s = shooters[Math.floor(Math.random() * shooters.length)];
+    alienBullets.push({ x: s.x + s.w / 2 - 1, y: s.y + s.h, w: 3, h: 7 });
+}
+
+function updateUFO(dt) {
+    ufoTimer += dt;
+    if (!ufo && ufoTimer >= UFO_MIN_INTERVAL) {
+        const scaledUfoChance = Math.min(
+            CONFIG.BALANCE.UFO_APPEARANCE_CHANCE * Math.pow(CONFIG.BALANCE.WAVE_SCALING.UFO_CHANCE_MULTIPLIER, wave - 1),
+            CONFIG.BALANCE.WAVE_SCALING.UFO_CHANCE_MAX
+        );
+        if (Math.random() < scaledUfoChance) {
+            ufo = { x: -16, y: UFO_FLIGHT_Y, w: 16, h: 7, dir: 1 };
+            ufoTimer = 0;
+        }
+    }
+    if (ufo) {
+        ufo.x += CONFIG.PHYSICS.UFO_SPEED * ufo.dir;
+        ufoSfxTimer += dt;
+        if (ufoSfxTimer > 200) { sfxUfoFly(); ufoSfxTimer = 0; }
+        if (ufo.x > CONFIG.GAME_WIDTH + 20) ufo = null;
+    }
+}
+
+// ── 충돌 판정 ─────────────────────────────────────────────────
+
+function rectOverlap(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x &&
+        a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function checkCollisions() {
+    // 1. 플레이어 탄환 vs 외계인
+    outer: for (let bi = playerBullets.length - 1; bi >= 0; bi--) {
+        const bullet = playerBullets[bi];
+
+        for (const alien of aliens) {
+            if (!alien.alive) continue;
+            if (rectOverlap(bullet, alien)) {
+                alien.alive = false;
+                sfxAlienExplode();
+                const pts = alien.type === 'A' ? 30 : alien.type === 'B' ? 20 : 10;
+                addScore(pts);
+                statsAlienKill++;
+                // 파티클 + 폭발 이펙트
+                const cx = alien.x + alien.w / 2;
+                const cy = alien.y + alien.h / 2;
+                // 파티클만 사용 (사각형 이펙트 없음)
+                spawnParticles(cx, cy, '#FFFF44', 12, 0.06, 500);
+                spawnParticles(cx, cy, '#FF8800', 6, 0.09, 380);
+                spawnParticles(cx, cy, '#FFFFFF', 4, 0.04, 300);
+                playerBullets.splice(bi, 1);
+                updateAlienSpeed();
+                continue outer;
+            }
+        }
+
+        // 2. 플레이어 탄환 vs UFO
+        if (ufo && rectOverlap(bullet, ufo)) {
+            const ufoPts = [50, 100, 150, 300][Math.floor(Math.random() * 4)];
+            addScore(ufoPts);
+            sfxUfoExplode();
+            const cx = ufo.x + ufo.w / 2;
+            const cy = ufo.y + ufo.h / 2;
+            spawnParticles(cx, cy, '#FF4444', 14, 0.08, 700);
+            spawnParticles(cx, cy, '#FFAA00', 8, 0.12, 500);
+            spawnParticles(cx, cy, '#FFFFFF', 6, 0.05, 600);
+            // 점수 팝업 텍스트 (위로 떠오르며 페이드)
+            textPopups.push({ x: cx, y: cy - 2, text: `+${ufoPts}`, life: 1400, maxLife: 1400, color: '#FFDD00' });
+            ufo = null;
+            playerBullets.splice(bi, 1);
+            continue;
+        }
+
+        // 3. 플레이어 탄환 vs 방어벽 (아래에서 위로 → fromBelow=true)
+        for (const bunker of bunkers) {
+            if (!rectOverlap(bullet, bunker)) continue;
+            if (erodePixels(bunker, bullet, true)) {
+                playerBullets.splice(bi, 1);
+                break;
+            }
+        }
+    }
+
+    // 4. 외계인 탄환 vs 플레이어
+    for (let bi = alienBullets.length - 1; bi >= 0; bi--) {
+        const bullet = alienBullets[bi];
+
+        if (rectOverlap(bullet, player)) {
+            alienBullets.splice(bi, 1);
+            doPlayerDeath();
+            return;
+        }
+
+        // 5. 외계인 탄환 vs 방어벽 (위에서 아래로 → fromBelow=false)
+        let hit = false;
+        for (const bunker of bunkers) {
+            if (!rectOverlap(bullet, bunker)) continue;
+            if (erodePixels(bunker, bullet, false)) {
+                alienBullets.splice(bi, 1);
+                hit = true;
+                break;
+            }
+        }
+        if (hit) continue;
+    }
+
+    // 6. 외계인 군단 vs 방어벽
+    for (const alien of aliens) {
+        if (!alien.alive) continue;
+        for (const bunker of bunkers) {
+            if (rectOverlap(alien, bunker)) eraseBunkerRegion(bunker, alien);
+        }
+    }
+}
+
+// ── 방어벽 픽셀 침식 ──────────────────────────────────────────
+
+function erodePixels(bunker, bullet, fromBelow) {
+    const bx = Math.floor(bullet.x - bunker.x);
+    const by = Math.floor(bullet.y - bunker.y);
+    const bw = Math.ceil(bullet.w);
+    const bh = Math.ceil(bullet.h);
+    let collided = false;
+
+    // fromBelow=true  (플레이어 탄환, 위로 이동): 탄환 하단→상단 스캔 (번커 안쪽)
+    //   py = by + bh - 1 - dy  (dy 커질수록 위로)
+    // fromBelow=false (외계인 탄환, 아래로 이동): 탄환 상단→하단 스캔 (번커 안쪽)
+    //   py = by + dy            (dy 커질수록 아래로)
+    for (let dy = 0; dy < bh + 4 && !collided; dy++) {
+        for (let dx = -1; dx < bw + 1; dx++) {
+            const px = bx + dx;
+            const py = fromBelow ? (by + bh - 1 - dy) : (by + dy);
+            if (px < 0 || px >= bunker.w || py < 0 || py >= bunker.h) continue;
+            if (bunker.pixels[py][px] === 1) {
+                collided = true;
+                // 반경 2칸(5x5) 침식으로 자연스러운 터널
+                for (let ey = py - 2; ey <= py + 2; ey++) {
+                    for (let ex = px - 2; ex <= px + 2; ex++) {
+                        if (ex >= 0 && ex < bunker.w && ey >= 0 && ey < bunker.h) {
+                            bunker.pixels[ey][ex] = 0;
+                        }
+                    }
+                }
+                bunker._dirty = true;
+                break; // 첫 접촉 행에서 즉시 종료
+            }
+        }
+    }
+    return collided;
+}
+
+function eraseBunkerRegion(bunker, alien) {
+    const sx = Math.max(0, Math.floor(alien.x - bunker.x));
+    const ex = Math.min(bunker.w, Math.ceil(alien.x + alien.w - bunker.x));
+    const sy = Math.max(0, Math.floor(alien.y - bunker.y));
+    const ey = Math.min(bunker.h, Math.ceil(alien.y + alien.h - bunker.y));
+    for (let y = sy; y < ey; y++)
+        for (let x = sx; x < ex; x++)
+            bunker.pixels[y][x] = 0;
+    bunker._dirty = true;
+}
+
+function getBunkerCanvas(bunker) {
+    if (bunker._dirty || !bunker._canvas) {
+        bunker._canvas = createSpriteCanvas(bunker.pixels, COLORS.BUNKER);
+        bunker._dirty = false;
+    }
+    return bunker._canvas;
+}
+
+// ── 렌더링 ────────────────────────────────────────────────────
+
+function render() {
+    ctx.fillStyle = COLORS.BACKGROUND;
+    ctx.fillRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
+
+    switch (currentState) {
+        case GAME_STATES.BOOT:
+            drawText('LOADING...', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT / 2, 8);
+            break;
+        case GAME_STATES.TITLE:
+            renderTitle();
+            break;
+        case GAME_STATES.READY:
+            renderScene();
+            renderReadyOverlay();
+            break;
+        case GAME_STATES.PLAY:
+            renderScene();
+            break;
+        case GAME_STATES.WAVE_CLEAR:
+            renderScene();
+            renderWaveClearFlash();
+            break;
+        case GAME_STATES.PAUSE:
+            renderScene();
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
+            drawText('PAUSED', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT / 2 - 8, 12, '#00FF00');
+            drawText('PRESS P TO RESUME', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT / 2 + 10, 5);
+            break;
+        case GAME_STATES.PLAYER_DEATH:
+            renderScene(true);
+            break;
+        case GAME_STATES.GAME_OVER:
+            renderGameOver();
+            break;
+    }
+}
+
+function renderTitle() {
+    drawText('SPACE', CONFIG.GAME_WIDTH / 2, 44, 16, '#00FF00');
+    drawText('INVADERS', CONFIG.GAME_WIDTH / 2, 62, 16, '#00FF00');
+    drawText('', CONFIG.GAME_WIDTH / 2, 80, 7, '#555555');
+
+    // 점수 안내
+    ctx.drawImage(spriteCache.ufo, CONFIG.GAME_WIDTH / 2 - 58, 100, 16, 7);
+    drawText('= ? MYSTERY', CONFIG.GAME_WIDTH / 2 + 2, 101, 5, COLORS.UFO);
+
+    ctx.drawImage(spriteCache.alienA[0], CONFIG.GAME_WIDTH / 2 - 60, 115, 8, 8);
+    drawText('= 30 POINTS', CONFIG.GAME_WIDTH / 2 + 2, 116, 5, COLORS.ALIEN);
+
+    ctx.drawImage(spriteCache.alienB[0], CONFIG.GAME_WIDTH / 2 - 60, 130, 11, 8);
+    drawText('= 20 POINTS', CONFIG.GAME_WIDTH / 2 + 2, 131, 5, COLORS.ALIEN_B);
+
+    ctx.drawImage(spriteCache.alienC[0], CONFIG.GAME_WIDTH / 2 - 60, 145, 12, 8);
+    drawText('= 10 POINTS', CONFIG.GAME_WIDTH / 2 + 2, 146, 5, COLORS.ALIEN_C);
+
+    if (blink) drawText('PRESS ENTER / FIRE TO START', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT - 24, 5, '#FFFF00');
+    drawText(`HI-SCORE: ${highScore}`, CONFIG.GAME_WIDTH / 2, 14, 6, '#FF4444');
+}
+
+function renderScene(isDying = false) {
+    // ── HUD (레이블 6px + 숫자 7px, 선명한 색상) ────────────────
+    drawText('SCORE', 42, 1, 6, '#88FF88');  // 밝은 녹색 레이블
+    drawText(`${score}`, 42, 9, 7, '#FFFFFF');  // 흰색 숫자
+    drawText('HI-SCORE', CONFIG.GAME_WIDTH / 2, 1, 6, '#FF9999');  // 연한 빨강 레이블
+    drawText(`${highScore}`, CONFIG.GAME_WIDTH / 2, 9, 7, '#FFFFFF');  // 흰색 숫자
+    drawText('WAVE', CONFIG.GAME_WIDTH - 22, 1, 6, '#88AAFF');  // 연한 파랑 레이블
+    drawText(`${wave}`, CONFIG.GAME_WIDTH - 22, 9, 7, '#FFFFFF');  // 흰색 숫자
+
+    // UFO 레인 구분선 (HUD 아래)
+    ctx.fillStyle = 'rgba(0,100,0,0.35)';
+    ctx.fillRect(0, 18, CONFIG.GAME_WIDTH, 1);
+
+    // UFO
+    if (ufo) ctx.drawImage(spriteCache.ufo, Math.round(ufo.x), Math.round(ufo.y), 16, 7);
+
+    // 방어벽
+    for (const bunker of bunkers) ctx.drawImage(getBunkerCanvas(bunker), bunker.x, bunker.y);
+
+    // 외계인
+    for (const alien of aliens) {
+        if (!alien.alive) continue;
+        let sp, sw;
+        if (alien.type === 'A') { sp = spriteCache.alienA[alien.frame]; sw = 8; }
+        else if (alien.type === 'B') { sp = spriteCache.alienB[alien.frame]; sw = 11; }
+        else { sp = spriteCache.alienC[alien.frame]; sw = 12; }
+        
+        // 셀(W=12) 내 중앙 정렬을 위한 오프셋
+        const xOffset = (ALIEN_W - sw) / 2;
+        ctx.drawImage(sp, Math.round(alien.x + xOffset), Math.round(alien.y), sw, alien.h);
+    }
+
+    // 플레이어
+    if (isDying) {
+        const frame = Math.floor(deathAnimFrame / 2) % 2;
+        ctx.drawImage(spriteCache.playerExp[frame], Math.round(player.x), Math.round(player.y), player.w, player.h);
+    } else {
+        ctx.drawImage(spriteCache.player, Math.round(player.x), Math.round(player.y), player.w, player.h);
+    }
+
+    // 플레이어 탄환
+    ctx.fillStyle = '#FFFFFF';
+    for (const b of playerBullets)
+        ctx.fillRect(Math.round(b.x), Math.round(b.y), b.w, b.h);
+
+    // 외계인 탄환
+    for (const b of alienBullets)
+        ctx.drawImage(spriteCache.alienBullet, Math.round(b.x), Math.round(b.y), 3, 7);
+
+    // 포트 점수 팝업 (사각형 없이 텍스트만)
+    for (const t of textPopups) {
+        const alpha = Math.max(0, t.life / t.maxLife);
+        ctx.globalAlpha = alpha;
+        drawText(t.text, t.x, t.y, 6, t.color);
+    }
+    ctx.globalAlpha = 1;
+
+    // 파티클 이펙트
+    for (const p of particles) {
+        const alpha = Math.max(0, p.life / p.maxLife);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), Math.max(1, Math.ceil(p.size)), Math.max(1, Math.ceil(p.size)));
+    }
+    ctx.globalAlpha = 1;
+
+    // 하단 경계선 + 잔여 목숨
+    ctx.fillStyle = '#00FF00';
+    ctx.fillRect(0, CONFIG.GAME_HEIGHT - 13, CONFIG.GAME_WIDTH, 1);
+    for (let i = 0; i < lives; i++)
+        ctx.drawImage(spriteCache.player, 4 + i * 14, CONFIG.GAME_HEIGHT - 11, 13, 8);
+}
+
+function renderWaveClearFlash() {
+    // 반투명 어두운 오버레이로 멈춤 상태 시각화
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.fillRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
+
+    const midX = CONFIG.GAME_WIDTH / 2;
+    const midY = CONFIG.GAME_HEIGHT / 2;
+
+    // 노란 광채 효과 (간단히 그림자처럼 오프셋 텍스트로 표현)
+    drawText('WAVE CLEARED!', midX + 1, midY - 5 + 1, 9, 'rgba(180,120,0,0.6)');
+    drawText('WAVE CLEARED!', midX,     midY - 5,     9, '#FFFF00');
+}
+
+function renderReadyOverlay() {
+    // 반투명 어두운 배경으로 게임 씬과 명확히 구분
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.70)';
+    ctx.fillRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
+
+    const midX = CONFIG.GAME_WIDTH / 2;
+    const midY = CONFIG.GAME_HEIGHT / 2;
+
+    if (isWaveClear) {
+        // 웨이브 클리어 전환 시: 이전 웨이브 완료 메시지
+        drawText(`WAVE ${wave - 1}`, midX, midY - 38, 9, '#FFFF00');
+        drawText('CLEARED!', midX, midY - 24, 9, '#FFFF00');
+        // 구분선
+        ctx.fillStyle = 'rgba(255,255,0,0.3)';
+        ctx.fillRect(midX - 60, midY - 10, 120, 1);
+        drawText(`NEXT WAVE ${wave}`, midX, midY - 4, 7, '#00FF00');
+        drawText('GET READY!', midX, midY + 10, 7, '#FFFFFF');
+    } else {
+        // 게임 시작 / 사망 후 부활
+        drawText('GET READY!', midX, midY - 10, 10, '#FFFF00');
+        drawText(`WAVE  ${wave}`, midX, midY + 8, 8, '#00FF00');
+    }
+
+    // 잔여 목숨 (깜빡임)
+    if (blink) {
+        drawText(`LIVES: ${lives}`, midX, midY + 26, 6, '#AAAAAA');
+    }
+}
+
+function renderGameOver() {
+    drawText('GAME OVER', CONFIG.GAME_WIDTH / 2, 68, 14, '#FF2222');
+    drawText('FINAL SCORE', CONFIG.GAME_WIDTH / 2, 100, 6, '#888888');
+    drawText(`${score}`, CONFIG.GAME_WIDTH / 2, 113, 14, '#FFFF00');
+    drawText(`ALIENS: ${statsAlienKill}`, CONFIG.GAME_WIDTH / 2, 140, 5, '#FFFFFF');
+    drawText(`WAVE:   ${wave}`, CONFIG.GAME_WIDTH / 2, 152, 5, '#FFFFFF');
+    if (score >= highScore && score > 0 && blink)
+        drawText('*** NEW HIGH SCORE ***', CONFIG.GAME_WIDTH / 2, 166, 5, '#FF8800');
+    drawText(`HI-SCORE: ${highScore}`, CONFIG.GAME_WIDTH / 2, 178, 5, '#FF4444');
+    if (blink)
+        drawText('PRESS ENTER TO PLAY AGAIN', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT - 20, 5, '#FFFF00');
+}
+
+// ── 텍스트 유틸리티 ───────────────────────────────────────────
+
+function drawText(text, x, y, size = 6, color = COLORS.TEXT) {
+    ctx.fillStyle = color;
+    ctx.font = `${size}px "Press Start 2P", "Courier New", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(text, x, y);
+}
+
+// ── 메인 루프 ─────────────────────────────────────────────────
+
+function gameLoop(timestamp) {
+    const dt = Math.min(timestamp - lastTime, 50);
+    lastTime = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(gameLoop);
+}
+
+// ── 부팅 ──────────────────────────────────────────────────────
+
+function boot() {
+    buildSpriteCache();
+    setupInput();
+    setTimeout(() => changeState(GAME_STATES.TITLE), 600);
+    requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
+}
+
+window.addEventListener('load', boot);
+
+})();
+</script>
+</body>
+
+</html>
